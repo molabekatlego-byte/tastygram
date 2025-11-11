@@ -1,9 +1,9 @@
-// src/pages/UploadPage.tsx
-import React, { useState, useEffect } from 'react';
-import { User, Recipe } from '../types';
-import { useNavigate, useLocation } from 'react-router-dom';
-import './UploadPage.css';
-import { API_BASE_URL } from '../api';
+import React, { useState, useEffect } from "react";
+import { User, Recipe } from "../types";
+import { useNavigate, useLocation } from "react-router-dom";
+import "./UploadPage.css";
+import { db } from "../firebase";
+import { collection, addDoc, doc, updateDoc } from "firebase/firestore";
 
 interface UploadPageProps {
   user?: User | null;
@@ -11,14 +11,17 @@ interface UploadPageProps {
   onRecipeSaved?: (recipe: Recipe) => void;
 }
 
-const UploadPage: React.FC<UploadPageProps> = ({ user, darkMode = false, onRecipeSaved }) => {
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('');
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [ingredients, setIngredients] = useState('');
-  const [steps, setSteps] = useState('');
+const UploadPage: React.FC<UploadPageProps> = ({
+  user,
+  darkMode = false,
+  onRecipeSaved,
+}) => {
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [category, setCategory] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const [ingredients, setIngredients] = useState("");
+  const [steps, setSteps] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const navigate = useNavigate();
@@ -29,78 +32,64 @@ const UploadPage: React.FC<UploadPageProps> = ({ user, darkMode = false, onRecip
     const state = location.state as { recipe?: Recipe };
     if (state?.recipe) {
       const r = state.recipe;
-      setEditingId(r.id || null); // Use `id` instead of `_id`
-      setTitle(r.title || '');
-      setDescription(r.description || '');
-      setCategory(r.category || '');
-      setImagePreview(r.imageUrl || null);
-      setIngredients(r.ingredients?.join(', ') || '');
-      setSteps(r.steps || '');
+      setEditingId(r.id || null);
+      setTitle(r.title || "");
+      setDescription(r.description || "");
+      setCategory(r.category || "");
+      setImageUrl(r.imageUrl || "");
+      setIngredients(r.ingredients?.join(", ") || "");
+      setSteps(r.steps || "");
     }
   }, [location.state]);
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setImageFile(file);
-    const reader = new FileReader();
-    reader.onload = () => setImagePreview(reader.result as string);
-    reader.readAsDataURL(file);
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return alert('You must be logged in to submit a recipe.');
+    if (!user) return alert("You must be logged in to submit a recipe.");
 
-    const recipeData = {
+    const recipeData: Recipe = {
+      id: editingId || "",
       title,
       description,
       category,
-      ingredients: ingredients.split(',').map(i => i.trim()),
+      ingredients: ingredients.split(",").map((i) => i.trim()),
       steps,
+      imageUrl,
       author: user.username,
-      imageUrl: imagePreview || '',
     };
 
     try {
-      const url = editingId
-        ? `${API_BASE_URL}/recipes/${editingId}`
-        : `${API_BASE_URL}/recipes`;
-      const method = editingId ? 'PUT' : 'POST';
+      if (editingId) {
+        const recipeRef = doc(db, "recipes", editingId);
+        const { id, ...updateData } = recipeData;
+        await updateDoc(recipeRef, updateData);
+        alert("Recipe updated successfully!");
+      } else {
+        const docRef = await addDoc(collection(db, "recipes"), recipeData);
+        recipeData.id = docRef.id;
+        alert("Recipe submitted successfully!");
+      }
 
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(recipeData),
-      });
-
-      if (!res.ok) throw new Error(`Failed to ${editingId ? 'update' : 'submit'} recipe`);
-
-      const savedRecipe: Recipe = await res.json();
-
-      alert(`Recipe ${editingId ? 'updated' : 'submitted'} successfully!`);
-
-      if (onRecipeSaved) onRecipeSaved(savedRecipe);
-
-      navigate('/my-recipes');
-    } catch (err) {
-      console.error(err);
-      alert('An error occurred while saving the recipe.');
+      if (onRecipeSaved) onRecipeSaved(recipeData);
+      navigate("/recipes");
+    } catch (error) {
+      console.error("Error saving recipe:", error);
+      alert("Failed to save recipe. Please try again.");
     }
   };
 
   if (!user) {
     return (
-      <div className={`upload-container ${darkMode ? 'dark-mode' : ''}`}>
+      <div className={`upload-container ${darkMode ? "dark-mode" : ""}`}>
         <h1>Please log in to upload a recipe.</h1>
       </div>
     );
   }
 
   return (
-    <div className={`upload-container ${darkMode ? 'dark-mode' : ''}`}>
-      <h1 className="upload-title">{editingId ? 'Edit Recipe' : 'Upload a New Recipe'}</h1>
+    <div className={`upload-container ${darkMode ? "dark-mode" : ""}`}>
+      <h1 className="upload-title">
+        {editingId ? "Edit Recipe" : "Upload a New Recipe"}
+      </h1>
       <form className="upload-form" onSubmit={handleSubmit}>
         <label>Title</label>
         <input
@@ -120,9 +109,15 @@ const UploadPage: React.FC<UploadPageProps> = ({ user, darkMode = false, onRecip
         />
 
         <label>Category</label>
-        <select value={category} onChange={(e) => setCategory(e.target.value)} required>
+        <select
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          required
+        >
           <option value="">Select a category</option>
-          <option value="African Traditional Food">African Traditional Food</option>
+          <option value="African Traditional Food">
+            African Traditional Food
+          </option>
           <option value="Desserts">Desserts</option>
           <option value="Italian">Italian</option>
           <option value="Indian">Indian</option>
@@ -130,11 +125,17 @@ const UploadPage: React.FC<UploadPageProps> = ({ user, darkMode = false, onRecip
           <option value="Other">Other</option>
         </select>
 
-        <label>Upload Image</label>
-        <input type="file" accept="image/*" onChange={handleImageChange} />
-        {imagePreview && (
+        <label>Image URL</label>
+        <input
+          type="url"
+          placeholder="Paste the image link (e.g., https://example.com/image.jpg)"
+          value={imageUrl}
+          onChange={(e) => setImageUrl(e.target.value)}
+          required
+        />
+        {imageUrl && (
           <div className="image-preview">
-            <img src={imagePreview} alt="Preview" />
+            <img src={imageUrl} alt="Preview" />
           </div>
         )}
 
@@ -155,7 +156,9 @@ const UploadPage: React.FC<UploadPageProps> = ({ user, darkMode = false, onRecip
           required
         />
 
-        <button type="submit">{editingId ? 'Update Recipe' : 'Submit Recipe'}</button>
+        <button type="submit">
+          {editingId ? "Update Recipe" : "Submit Recipe"}
+        </button>
       </form>
     </div>
   );

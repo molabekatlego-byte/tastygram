@@ -11,6 +11,9 @@ import GuestPage from './pages/GuestPage';
 import MyRecipesPage from './pages/MyRecipesPage';
 import UploadPage from './pages/UploadPage';
 import { Recipe, User } from './types';
+import AdminPage from './pages/AdminPage';
+import ProtectedAdminRoute from './components/ProtectedAdminRoute';
+
 
 // firebase imports
 import { auth, db } from './firebase';
@@ -104,10 +107,24 @@ const App: React.FC = () => {
           <Route path="/signup" element={<SignupPage setUser={setUser} darkMode={darkMode} />} />
           <Route path="/guest" element={<GuestPage setUser={setUser} darkMode={darkMode} />} />
           {/* removed 'loading' prop to match RecipesPage's props type */}
-          <Route path="/recipes" element={<RecipesPage recipes={recipes} searchQuery={searchQuery} darkMode={darkMode} />} />
-          <Route path="/recipe/:id" element={<RecipeDetailPage recipes={recipes} darkMode={darkMode} />} />
+          <Route
+            path="/recipes"
+            element={<RecipesPage recipes={recipes} searchQuery={searchQuery} darkMode={darkMode} user={user} />}
+          />
+          <Route
+            path="/recipe/:id"
+            element={<RecipeDetailPage recipes={recipes} user={user} darkMode={darkMode} />}
+          />
           <Route path="/upload" element={<UploadPage user={user} darkMode={darkMode} />} />
           <Route path="/my-recipes" element={<MyRecipesPage user={user} darkMode={darkMode} />} />
+          <Route
+            path="/admin"
+            element={
+              <ProtectedAdminRoute user={user}>
+                <AdminPage />
+              </ProtectedAdminRoute>
+            }
+          />
         </Routes>
       </div>
     </Router>

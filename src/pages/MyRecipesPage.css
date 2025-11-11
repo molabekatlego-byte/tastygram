@@ -1,7 +1,8 @@
 .my-recipes-page {
-  max-width: 1200px;
+  max-width: 1300px;
   margin: 3rem auto;
   padding: 0 1rem;
+  font-family: 'Poppins', 'Segoe UI', sans-serif;
 }
 
 .my-recipes-title {
@@ -12,10 +13,11 @@
   color: #222;
 }
 
+.loading-text,
 .no-recipes-msg {
   font-size: 1.2rem;
   text-align: center;
-  color: #555;
+  color: #666;
 }
 
 .no-recipes-msg a {
@@ -28,119 +30,130 @@
   text-decoration: underline;
 }
 
-/* Recipes Grid */
+/* Grid Layout */
 .recipes-grid {
   display: grid;
   gap: 2rem;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
 }
 
-/* Recipe Card */
-.recipe-card {
+/* Modern Recipe Card */
+.recipe-card-modern {
   background-color: #fff;
-  border-radius: 2rem;
+  border-radius: 20px;
   overflow: hidden;
-  box-shadow: 0 5px 15px rgba(0,0,0,0.05);
-  transition: all 0.3s ease-in-out;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  cursor: pointer;
 }
 
-.recipe-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+.recipe-card-modern.dark {
+  background-color: #1e1e1e;
+  box-shadow: 0 8px 20px rgba(255, 255, 255, 0.05);
+}
+
+.recipe-card-modern:hover {
+  transform: translateY(-6px) scale(1.02);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+}
+
+.recipe-card-img-container {
+  position: relative;
+  height: 220px;
+  overflow: hidden;
 }
 
 .recipe-card-img {
   width: 100%;
-  height: 200px;
+  height: 100%;
   object-fit: cover;
+  transition: transform 0.4s ease;
 }
 
-.recipe-card-img.placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #999;
-  background-color: #f3f3f3;
-  font-style: italic;
+.recipe-card-modern:hover .recipe-card-img {
+  transform: scale(1.08);
 }
 
-.recipe-card-body {
-  padding: 1.5rem;
+.recipe-card-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 1rem;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.65), transparent);
 }
 
-.recipe-card-title {
-  font-size: 1.5rem;
+.recipe-card-overlay h2 {
+  margin: 0;
+  color: #fff;
+  font-size: 1.4rem;
   font-weight: 700;
-  color: #444;
-  margin-bottom: 0.5rem;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 
-.recipe-card-category {
-  font-size: 0.95rem;
+/* Content Section */
+.recipe-card-content {
+  padding: 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.recipe-meta {
+  font-size: 0.9rem;
   color: #a38f6e;
-  font-style: italic;
-  margin-bottom: 1rem;
-}
-
-.recipe-card-description {
-  font-size: 1rem;
-  color: #666;
-  line-height: 1.5;
-  margin-bottom: 1rem;
-}
-
-.recipe-card-link {
-  display: inline-block;
-  padding: 0.5rem 1.5rem;
-  border-radius: 1rem;
-  background-color: #f7e8c8;
-  color: #444;
   font-weight: 600;
-  text-decoration: none;
-  box-shadow: 0 5px 15px rgba(0,0,0,0.05);
-  transition: all 0.3s ease-in-out;
 }
 
-.recipe-card-link:hover {
-  background-color: #f3ddb0;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.07);
+.recipe-desc {
+  font-size: 0.95rem;
+  color: #444;
+  line-height: 1.5;
 }
 
-/* Edit/Delete Buttons */
+/* Actions */
 .recipe-card-actions {
   display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  margin-top: 0.5rem;
+  gap: 0.6rem;
+  margin-top: 0.6rem;
 }
 
-.recipe-card-btn {
-  padding: 0.5rem 1rem;
-  border-radius: 1rem;
+.recipe-view-btn,
+.recipe-edit-btn,
+.recipe-delete-btn {
+  flex: 1;
+  padding: 0.6rem 0.8rem;
   border: none;
+  border-radius: 10px;
   font-weight: 600;
+  font-size: 0.9rem;
   cursor: pointer;
-  transition: all 0.3s ease-in-out;
+  transition: all 0.3s ease;
 }
 
-.edit-btn {
-  background-color: #f7f7f7;
+.recipe-view-btn {
+  background: #f7e8c8;
   color: #444;
-  box-shadow: 0 5px 15px rgba(0,0,0,0.05);
 }
 
-.edit-btn:hover {
-  background-color: #eaeaea;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.07);
+.recipe-view-btn:hover {
+  background: #f3ddb0;
 }
 
-.delete-btn {
-  background-color: #f28b82; /* subtle red */
+.recipe-edit-btn {
+  background: #eee;
+  color: #333;
+}
+
+.recipe-edit-btn:hover {
+  background: #ddd;
+}
+
+.recipe-delete-btn {
+  background: #f28b82;
   color: #fff;
-  box-shadow: 0 5px 15px rgba(0,0,0,0.05);
 }
 
-.delete-btn:hover {
-  background-color: #e06666;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.07);
+.recipe-delete-btn:hover {
+  background: #e06666;
 }

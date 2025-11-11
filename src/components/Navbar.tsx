@@ -60,10 +60,12 @@ const Navbar: React.FC<NavbarProps> = ({
             <>
               <li><Link to="/upload" onClick={() => setMenuOpen(false)}>Upload</Link></li>
               <li><Link to="/my-recipes" onClick={() => setMenuOpen(false)}>My Recipes</Link></li>
+              {user.userType === 'admin' && (
+                <li><Link to="/admin" onClick={() => setMenuOpen(false)}>Admin</Link></li>
+              )}
             </>
           ) : (
             <>
-              {/* keep Recipes visible; Login/Signup in center on large screens */}
               <li className="hidden-sm"><Link to="/login" onClick={() => setMenuOpen(false)}>Login</Link></li>
               <li className="hidden-sm"><Link to="/signup" onClick={() => setMenuOpen(false)}>Sign Up</Link></li>
               <li className="hidden-sm"><Link to="/guest" onClick={() => setMenuOpen(false)}>Guest</Link></li>
@@ -83,7 +85,6 @@ const Navbar: React.FC<NavbarProps> = ({
           />
         </div>
 
-        {/* For logged in user show username and logout */}
         {user ? (
           <div className="user-actions">
             <span className="username" title={`Signed in as ${user.username}`}>{user.username}</span>
@@ -92,7 +93,6 @@ const Navbar: React.FC<NavbarProps> = ({
             </button>
           </div>
         ) : (
-          // on wide screens Login/Signup already in center; keep a compact link group for smaller screens
           <div className="auth-compact hidden-lg">
             <Link to="/login" onClick={() => setMenuOpen(false)}>Login</Link>
             <Link to="/signup" onClick={() => setMenuOpen(false)} className="signup-cta">Sign Up</Link>
@@ -110,7 +110,6 @@ const Navbar: React.FC<NavbarProps> = ({
           </button>
         )}
 
-        {/* Hamburger for mobile */}
         <button
           className={`navbar-toggle ${menuOpen ? 'open' : ''}`}
           onClick={() => setMenuOpen(prev => !prev)}
@@ -132,6 +131,9 @@ const Navbar: React.FC<NavbarProps> = ({
             <>
               <li><Link to="/upload" onClick={() => setMenuOpen(false)}>Upload</Link></li>
               <li><Link to="/my-recipes" onClick={() => setMenuOpen(false)}>My Recipes</Link></li>
+              {user.userType === 'admin' && (
+                <li><Link to="/admin" onClick={() => setMenuOpen(false)}>Admin</Link></li>
+              )}
               <li><button onClick={() => { handleLogout(); setMenuOpen(false); }}>Logout</button></li>
             </>
           ) : (

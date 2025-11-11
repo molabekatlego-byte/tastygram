@@ -1,0 +1,72 @@
+.admin-page {
+  padding: 2rem;
+  font-family: 'Poppins', 'Segoe UI', sans-serif;
+}
+
+.page-title {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 1.5rem;
+}
+
+.tabs {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 1.5rem;
+}
+
+.tab {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  background: #fafafa;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.tab.active {
+  background: #ffd479;
+  border-color: #e6a157;
+  color: #fff;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 2rem;
+}
+
+.admin-table th,
+.admin-table td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+}
+
+.admin-table th {
+  background: #f3f3f3;
+  font-weight: 600;
+}
+
+.admin-table button {
+  padding: 4px 8px;
+  background: #e74c3c;
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  cursor: pointer;
+}
+
+.admin-table button:hover {
+  background: #c0392b;
+}
+
+.analytics ul {
+  list-style: none;
+  padding: 0;
+}
+
+.analytics li {
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+}

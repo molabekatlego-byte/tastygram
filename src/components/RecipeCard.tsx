@@ -1,64 +1,167 @@
-import React, { useState, useEffect } from 'react';
+// src/components/RecipeCard.tsx
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Recipe, Review } from '../types';
+import { Recipe, Review, User } from '../types';
+import {
+  collection,
+  doc,
+  getDoc,
+  onSnapshot,
+  setDoc,
+  deleteDoc,
+  serverTimestamp,
+} from 'firebase/firestore';
+import { db } from '../firebase';
 
 interface RecipeCardProps {
   recipe: Recipe;
   darkMode?: boolean;
+  user?: User | null;
 }
 
-const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, darkMode = false }) => {
+const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, darkMode = false, user }) => {
   const [hovered, setHovered] = useState(false);
   const [liked, setLiked] = useState(false);
-  const [showReviews, setShowReviews] = useState(false);
+  const [likesCount, setLikesCount] = useState<number>(0);
+  const [reviewsCount, setReviewsCount] = useState<number>(
+    Array.isArray(recipe.reviews) ? recipe.reviews.length : 0
+  );
+  const [busy, setBusy] = useState(false);
 
-  // ✅ Safe fallback recipe object
-  const safeRecipe = {
-    id: recipe.id || '',
-    title: recipe.title || 'Untitled Recipe',
-    description: recipe.description || 'No description available.',
-    category: recipe.category || 'Uncategorized',
-    author: recipe.author || 'Anonymous Chef',
-    imageUrl:
-      recipe.imageUrl && recipe.imageUrl.trim() !== ''
-        ? recipe.imageUrl
-        : '/assets/placeholder.jpg', // ✅ Use /public/assets path
-    reviews: recipe.reviews || [],
-  };
+  // Robust user id detection (some user shapes use `id` some `uid`)
+  const userId = (user as any)?.id ?? (user as any)?.uid ?? null;
 
-  // ✅ Load liked state from localStorage
+  // Normalize recipe and image path (works with records like "/assets/foo.jpg", "foo.jpg", or external URLs)
+  const safeRecipe = useMemo(() => {
+    const imgRaw = recipe.imageUrl ? String(recipe.imageUrl).trim() : '';
+    let imageUrl = '/assets/placeholder.jpg';
+    if (imgRaw) {
+      if (/^https?:\/\//i.test(imgRaw)) imageUrl = imgRaw; // external URL
+      else if (imgRaw.startsWith('/')) imageUrl = imgRaw; // already absolute from public
+      else if (imgRaw.startsWith('assets/') || imgRaw.startsWith('public/assets/')) imageUrl = `/${imgRaw.replace(/^public\//, '')}`;
+      else imageUrl = `/assets/${imgRaw}`; // filename only
+    }
+
+    return {
+      id: recipe.id ?? '',
+      title: recipe.title ?? 'Untitled Recipe',
+      description: recipe.description ?? 'No description available.',
+      category: recipe.category ?? 'Uncategorized',
+      author: recipe.author ?? 'Anonymous Chef',
+      imageUrl,
+      reviews: recipe.reviews ?? ([] as Review[]),
+    };
+  }, [recipe]);
+
+  // Real-time subscription for likes count and reviews count + whether this user liked
   useEffect(() => {
-    const savedLikes = JSON.parse(localStorage.getItem('likedRecipes') || '{}');
-    setLiked(!!savedLikes[safeRecipe.id]);
-  }, [safeRecipe.id]);
+    if (!safeRecipe.id) return;
 
-  const toggleLike = (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.preventDefault();
-    setLiked((prev) => {
-      const newState = !prev;
-      const savedLikes = JSON.parse(localStorage.getItem('likedRecipes') || '{}');
-      savedLikes[safeRecipe.id] = newState;
-      localStorage.setItem('likedRecipes', JSON.stringify(savedLikes));
-      return newState;
-    });
-  };
+    const likesCol = collection(db, 'recipes', safeRecipe.id, 'likes');
+    const reviewsCol = collection(db, 'recipes', safeRecipe.id, 'reviews');
 
-  // ✅ Compute average rating
-  const averageRating =
-    safeRecipe.reviews.length > 0
-      ? (
-          safeRecipe.reviews.reduce(
-            (sum: number, r: Review) => sum + (r.rating || 0),
-            0
-          ) / safeRecipe.reviews.length
-        ).toFixed(1)
-      : null;
+    const unsubLikes = onSnapshot(
+      likesCol,
+      (snap) => {
+        setLikesCount(snap.size);
+        if (userId) {
+          setLiked(snap.docs.some((d) => d.id === String(userId)));
+        } else {
+          setLiked(false);
+        }
+      },
+      (err) => {
+        console.error('likes onSnapshot error:', err);
+      }
+    );
+
+    const unsubReviews = onSnapshot(
+      reviewsCol,
+      (snap) => {
+        setReviewsCount(snap.size);
+      },
+      (err) => {
+        console.error('reviews onSnapshot error:', err);
+      }
+    );
+
+    return () => {
+      unsubLikes();
+      unsubReviews();
+    };
+  }, [safeRecipe.id, userId]);
+
+  // Toggle like (creates/deletes doc at recipes/{id}/likes/{userId} and mirror at users/{userId}/likes/{recipeId})
+  const toggleLike = useCallback(
+    async (e: React.MouseEvent<HTMLButtonElement>) => {
+      // prevent navigation when clicking in the card (it's wrapped in a Link)
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (!safeRecipe.id) return;
+      if (!userId) {
+        // if you want a gentler UX you could open a modal or route to /login instead
+        alert('Please log in to like recipes.');
+        return;
+      }
+      if (busy) return;
+      setBusy(true);
+
+      try {
+        const likeRef = doc(db, 'recipes', safeRecipe.id, 'likes', String(userId));
+        const userLikeRef = doc(db, 'users', String(userId), 'likes', safeRecipe.id);
+
+        const existing = await getDoc(likeRef);
+        if (existing.exists()) {
+          // unlike
+          await deleteDoc(likeRef);
+          // best-effort delete mirror
+          try {
+            await deleteDoc(userLikeRef);
+          } catch (err) {
+            console.warn('mirror delete failed', err);
+          }
+          // optimistic local update — onSnapshot will reconcile
+          setLiked(false);
+          setLikesCount((n) => Math.max(0, n - 1));
+        } else {
+          // like
+          await setDoc(likeRef, {
+            userId: String(userId),
+            username: (user as any)?.username ?? (user as any)?.name ?? '',
+            createdAt: serverTimestamp(),
+          });
+          await setDoc(userLikeRef, {
+            recipeId: safeRecipe.id,
+            title: safeRecipe.title ?? '',
+            createdAt: serverTimestamp(),
+          });
+          setLiked(true);
+          setLikesCount((n) => n + 1);
+        }
+      } catch (err) {
+        console.error('Error toggling like:', err);
+        alert('Could not update like — please try again.');
+      } finally {
+        setBusy(false);
+      }
+    },
+    [safeRecipe.id, safeRecipe.title, userId, user, busy]
+  );
+
+  // Local derived average rating (if recipe carries embedded reviews array)
+  const averageRating = useMemo(() => {
+    if (!Array.isArray(safeRecipe.reviews) || safeRecipe.reviews.length === 0) return null;
+    const sum = safeRecipe.reviews.reduce((s, r) => s + (r.rating ?? 0), 0);
+    return (sum / safeRecipe.reviews.length).toFixed(1);
+  }, [safeRecipe.reviews]);
 
   return (
     <Link
       to={`/recipe/${safeRecipe.id}`}
       state={{ recipe: safeRecipe }}
       style={{ textDecoration: 'none', color: 'inherit' }}
+      aria-label={`Open ${safeRecipe.title}`}
     >
       <div
         onMouseEnter={() => setHovered(true)}
@@ -85,7 +188,7 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, darkMode = false }) => 
           fontFamily: "'Poppins', 'Segoe UI', sans-serif",
         }}
       >
-        {/* ✅ Image Section */}
+        {/* Image */}
         <div
           style={{
             position: 'relative',
@@ -106,9 +209,11 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, darkMode = false }) => 
               transform: hovered ? 'scale(1.08)' : 'scale(1)',
             }}
             loading="lazy"
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).src = '/assets/placeholder.jpg';
+            }}
           />
 
-          {/* Gradient Overlay */}
           <div
             style={{
               position: 'absolute',
@@ -118,9 +223,8 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, darkMode = false }) => 
               height: '60%',
               background: 'linear-gradient(to top, rgba(0,0,0,0.65), transparent)',
             }}
-          ></div>
+          />
 
-          {/* Title */}
           <h3
             style={{
               position: 'absolute',
@@ -129,7 +233,7 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, darkMode = false }) => 
               color: '#fff',
               margin: 0,
               fontWeight: 700,
-              fontSize: '1.4rem',
+              fontSize: '1.35rem',
               textShadow: '0 2px 6px rgba(0,0,0,0.6)',
             }}
           >
@@ -137,170 +241,95 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, darkMode = false }) => 
           </h3>
         </div>
 
-        {/* ✅ Info Section */}
-        <div
-          style={{
-            padding: '1.2rem 1.4rem',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '0.7rem',
-          }}
-        >
-          <p
-            style={{
-              fontSize: '0.9rem',
-              color: darkMode ? '#f0c6a0' : '#7d5a50',
-              fontWeight: 600,
-              margin: 0,
-            }}
-          >
+        {/* Content */}
+        <div style={{ padding: '1.2rem 1.4rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+          <p style={{ fontSize: '0.9rem', color: darkMode ? '#f0c6a0' : '#7d5a50', fontWeight: 600, margin: 0 }}>
             {safeRecipe.category} • {safeRecipe.author}
           </p>
 
-          <p
-            style={{
-              fontSize: '0.95rem',
-              color: darkMode ? '#ddd' : '#444',
-              margin: 0,
-              lineHeight: 1.5,
-            }}
-          >
-            {safeRecipe.description.length > 100
-              ? safeRecipe.description.substring(0, 100) + '...'
-              : safeRecipe.description}
+          <p style={{ fontSize: '0.95rem', color: darkMode ? '#ddd' : '#444', margin: 0, lineHeight: 1.5 }}>
+            {safeRecipe.description.length > 110 ? safeRecipe.description.substring(0, 110) + '...' : safeRecipe.description}
           </p>
 
-          {/* Rating + Like */}
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginTop: '0.3rem',
-            }}
-          >
-            {averageRating ? (
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: '0.95rem',
-                  color: darkMode ? '#ffd479' : '#e6a157',
-                  fontWeight: 600,
-                }}
-              >
-                ⭐ {averageRating}{' '}
-                <span style={{ color: darkMode ? '#aaa' : '#888' }}>
-                  ({safeRecipe.reviews.length})
-                </span>
-              </p>
-            ) : (
-              <p
-                style={{
-                  margin: 0,
-                  color: darkMode ? '#999' : '#bbb',
-                  fontSize: '0.9rem',
-                }}
-              >
-                ⭐ No reviews yet
-              </p>
-            )}
+          {/* Rating / counts / like button */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              {/* Show review count & average if reviews exist, otherwise "No reviews" */}
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {reviewsCount > 0 ? (
+                  <span style={{ fontSize: '0.95rem', color: darkMode ? '#ffd479' : '#e6a157', fontWeight: 600 }}>
+                    {averageRating ? `⭐ ${averageRating}` : '⭐'} <span style={{ color: darkMode ? '#aaa' : '#888', fontWeight: 500 }}>({reviewsCount})</span>
+                  </span>
+                ) : (
+                  <span style={{ fontSize: '0.9rem', color: darkMode ? '#999' : '#bbb' }}>⭐ No reviews</span>
+                )}
+              </div>
+            </div>
 
-            <button
-              onClick={toggleLike}
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: '1.6rem',
-                transition: 'transform 0.2s ease',
-                transform: liked ? 'scale(1.1)' : 'scale(1)',
-              }}
-              aria-label={liked ? 'Unlike recipe' : 'Like recipe'}
-            >
-              {liked ? '❤️' : '🤍'}
-            </button>
-          </div>
-
-          {/* Reviews Section */}
-          {safeRecipe.reviews.length > 0 && (
-            <>
+            {/* Like button with count */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ fontSize: 14, color: darkMode ? '#ffd479' : '#e6a157', fontWeight: 700 }}>
+                {likesCount}
+              </div>
               <button
-                onClick={(e) => {
+                onClick={async (e) => {
                   e.preventDefault();
-                  setShowReviews((prev) => !prev);
+                  e.stopPropagation();
+                  if (!user) return; // user must exist, else don't like
+
+                  if (busy) return;
+                  setBusy(true);
+
+                  try {
+                    const userId = user.id;
+                    const likeRef = doc(db, 'recipes', safeRecipe.id, 'likes', userId);
+                    const userLikeRef = doc(db, 'users', userId, 'likes', safeRecipe.id);
+                    const existing = await getDoc(likeRef);
+
+                    if (existing.exists()) {
+                      // Unlike
+                      await deleteDoc(likeRef);
+                      await deleteDoc(userLikeRef).catch(() => {});
+                      setLiked(false);
+                      setLikesCount((n) => Math.max(0, n - 1));
+                    } else {
+                      // Like
+                      await setDoc(likeRef, {
+                        userId,
+                        username: user.username ?? user.name ?? '',
+                        createdAt: serverTimestamp(),
+                      });
+                      await setDoc(userLikeRef, {
+                        recipeId: safeRecipe.id,
+                        title: safeRecipe.title,
+                        createdAt: serverTimestamp(),
+                      });
+                      setLiked(true);
+                      setLikesCount((n) => n + 1);
+                    }
+                  } catch (err) {
+                    console.error('Error toggling like:', err);
+                  } finally {
+                    setBusy(false);
+                  }
                 }}
+                disabled={busy}
+                aria-pressed={liked}
+                aria-label={liked ? 'Unlike recipe' : 'Like recipe'}
+                title={liked ? 'Unlike' : 'Like'}
                 style={{
-                  marginTop: '0.6rem',
-                  background: darkMode ? '#333' : '#fafafa',
-                  border: `1px solid ${darkMode ? '#555' : '#ddd'}`,
-                  padding: '0.4rem 0.8rem',
-                  borderRadius: 8,
+                  background: 'none',
+                  border: 'none',
                   cursor: 'pointer',
-                  fontSize: '0.85rem',
-                  color: darkMode ? '#fff' : '#333',
-                  alignSelf: 'flex-start',
-                  transition: 'background 0.2s ease',
+                  fontSize: '1.45rem',
+                  transform: liked ? 'scale(1.08)' : 'scale(1)',
+                  color: liked ? 'red' : undefined, // heart turns red when liked
                 }}
               >
-                {showReviews ? 'Hide Reviews' : 'Show Reviews'}
+                {liked ? '❤️' : '🤍'}
               </button>
-
-              {showReviews && (
-                <div
-                  style={{
-                    marginTop: '0.6rem',
-                    background: darkMode ? '#2a2a2a' : '#f8f8f8',
-                    borderRadius: 8,
-                    padding: '0.6rem',
-                    maxHeight: 150,
-                    overflowY: 'auto',
-                  }}
-                >
-                  {safeRecipe.reviews.map((r: Review, idx: number) => (
-                    <div
-                      key={idx}
-                      style={{
-                        borderBottom: `1px solid ${
-                          darkMode ? '#444' : '#e0e0e0'
-                        }`,
-                        paddingBottom: '0.4rem',
-                        marginBottom: '0.4rem',
-                      }}
-                    >
-                      <p
-                        style={{
-                          margin: 0,
-                          fontWeight: 600,
-                          fontSize: '0.9rem',
-                          color: darkMode ? '#f0c6a0' : '#7d5a50',
-                        }}
-                      >
-                        {r.username || 'Anonymous'}
-                      </p>
-                      <p
-                        style={{
-                          margin: '0.2rem 0',
-                          fontSize: '0.85rem',
-                          color: darkMode ? '#ccc' : '#555',
-                        }}
-                      >
-                        ⭐ {r.rating}
-                      </p>
-                      <p
-                        style={{
-                          margin: 0,
-                          fontSize: '0.8rem',
-                          color: darkMode ? '#aaa' : '#666',
-                        }}
-                      >
-                        {r.comment || 'No comment provided.'}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
+            </div>
+          </div>
         </div>
       </div>
     </Link>

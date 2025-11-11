@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import Filter from '../components/Filter';
 import RecipeCard from '../components/RecipeCard';
-import { Recipe } from '../types';
+import { Recipe, User } from '../types';
 import './RecipesPage.css';
 
 interface RecipesPageProps {
   recipes: Recipe[];
   searchQuery?: string;
   darkMode?: boolean;
+  user?: User | null;
 }
 
 const categories = [
@@ -22,9 +23,11 @@ const categories = [
   'Desserts',
 ];
 
-const RecipesPage: React.FC<RecipesPageProps> = ({ recipes = [], searchQuery = '', darkMode = false }) => {
+const RecipesPage: React.FC<RecipesPageProps> = ({ recipes = [], searchQuery = '', darkMode = false, user }) => {
+  const [filteredRecipes, setFilteredRecipes] = useState<Recipe[]>(recipes.filter((r) =>
+    r.title.toLowerCase().includes(searchQuery.toLowerCase())
+  ));
   const [selectedCategory, setSelectedCategory] = useState<string>('');
-  const [filteredRecipes, setFilteredRecipes] = useState<Recipe[]>([]);
   const [mostLoved, setMostLoved] = useState<Recipe[]>([]);
 
   // Filter recipes based on category & search
