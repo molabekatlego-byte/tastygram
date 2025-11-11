@@ -1,0 +1,82 @@
+/* src/pages/GuestPage.css */
+
+@keyframes gradientAnimation {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.guest-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: calc(100vh - 80px); /* leave space for navbar */
+  background: linear-gradient(-45deg, #fefcea, #f1da36, #fceabb, #f1da36);
+  background-size: 400% 400%;
+  animation: gradientAnimation 15s ease infinite;
+  font-family: 'Segoe UI', sans-serif;
+}
+
+.guest-card {
+  background-color: rgba(255, 255, 255, 0.95); /* slightly transparent for gradient effect */
+  padding: 3rem;
+  border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+  text-align: center;
+  max-width: 450px;
+}
+
+.guest-card h1 {
+  font-size: 2rem;
+  color: #bfa34a;
+  margin-bottom: 1rem;
+}
+
+.guest-card p {
+  color: #333333;
+  margin-bottom: 2rem;
+}
+
+.guest-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.cta-button {
+  padding: 0.8rem 1.2rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.cta-button.guest-continue {
+  background-color: #bfa34a;
+  color: #fff;
+}
+
+.cta-button.guest-continue:hover {
+  background-color: #d4b65a;
+}
+
+.cta-button.login {
+  background-color: #333333;
+  color: #fff;
+}
+
+.cta-button.login:hover {
+  background-color: #555555;
+}
+
+.cta-button.signup {
+  background-color: #ffffff;
+  color: #bfa34a;
+  border: 2px solid #bfa34a;
+}
+
+.cta-button.signup:hover {
+  background-color: #bfa34a;
+  color: #ffffff;
+}
