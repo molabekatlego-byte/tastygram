@@ -11,7 +11,7 @@ interface SignupFormProps {
   setUser?: React.Dispatch<React.SetStateAction<User | null>>;
 }
 
-const USER_TYPES = ['user', 'chef', 'admin', 'guest'];
+const USER_TYPES = ['user', 'chef', 'guest'];
 
 const SignupForm: React.FC<SignupFormProps> = ({ darkMode = false, setUser }) => {
   const navigate = useNavigate(); // <-- hook for redirect
